@@ -46,7 +46,7 @@ export function DropPhotoButton() {
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { bottom: insets.bottom + 6 }]}
+      style={[styles.wrap, { bottom: insets.bottom + 8 }]}
     >
       <Pressable
         accessibilityRole="button"
@@ -79,8 +79,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   btn: {
-    width: 178,
-    height: 62,
+    width: 142,
+    height: 50,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 10,
@@ -91,16 +91,16 @@ const styles = StyleSheet.create({
     ...shadows.glass,
   },
   icon: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
+    width: 34,
+    height: 34,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.18)',
   },
   copy: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
   },
   eyebrow: {
     color: 'rgba(255,255,255,0.68)',
@@ -111,12 +111,12 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
   },
   arrow: {
-    width: 28,
-    height: 28,
+    width: 25,
+    height: 25,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
