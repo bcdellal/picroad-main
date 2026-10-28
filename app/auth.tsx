@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { supabase } from '../src/lib/supabase';
-import { colors, radius } from '../src/theme';
+import { colors } from '../src/theme';
 
 const LOCAL_AUTH_KEY = 'picroad-local-auth-v1';
 
@@ -90,55 +99,275 @@ export default function AuthScreen() {
     }
   }
 
+  const isLogin = mode === 'login';
+
   return (
-    <View style={s.root}>
-      <Text style={s.title}>PicRoad</Text>
-      <Text style={s.sub}>{mode === 'login' ? 'Yürüyüşüne geri dön.' : 'Kendi izini bırak.'}</Text>
+    <KeyboardAvoidingView
+      style={s.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <View style={s.glowOne} />
+        <View style={s.glowTwo} />
+        <View style={s.glowThree} />
+      </View>
 
-      <TextInput
-        autoCapitalize="none"
-        autoCorrect={false}
-        value={username}
-        onChangeText={setUsername}
-        placeholder="Kullanıcı adı"
-        style={s.input}
-      />
+      <View style={s.content}>
+        <View style={s.brandMark}>
+          <View style={s.brandDot} />
+        </View>
 
-      <TextInput
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        placeholder="Şifre"
-        style={s.input}
-      />
-
-      {!!error && <Text style={s.error}>{error}</Text>}
-
-      <Pressable disabled={loading} onPress={submit} style={s.button}>
-        {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.buttonText}>
-          {mode === 'login' ? 'Giriş yap' : 'Kayıt ol'}
-        </Text>}
-      </Pressable>
-
-      <Pressable onPress={() => {
-        setMode(mode === 'login' ? 'signup' : 'login');
-        setError('');
-      }}>
-        <Text style={s.switch}>
-          {mode === 'login' ? 'Hesabın yok mu? Kayıt ol' : 'Zaten hesabın var mı? Giriş yap'}
+        <Text style={s.title}>PicRoad</Text>
+        <Text style={s.sub}>
+          {isLogin ? 'Yürüyüşüne kaldığın yerden devam et.' : 'Kendi izini bırak.'}
         </Text>
-      </Pressable>
-    </View>
+
+        <View style={s.glassCard}>
+          <View style={s.segment}>
+            <Pressable
+              onPress={() => { setMode('login'); setError(''); }}
+              style={[s.segmentItem, isLogin && s.segmentActive]}
+            >
+              <Text style={[s.segmentText, isLogin && s.segmentTextActive]}>Giriş</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => { setMode('signup'); setError(''); }}
+              style={[s.segmentItem, !isLogin && s.segmentActive]}
+            >
+              <Text style={[s.segmentText, !isLogin && s.segmentTextActive]}>Kayıt</Text>
+            </Pressable>
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>KULLANICI ADI</Text>
+            <TextInput
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="username"
+              value={username}
+              onChangeText={setUsername}
+              placeholder="kullaniciadi"
+              placeholderTextColor="rgba(27,27,47,0.35)"
+              style={s.input}
+            />
+          </View>
+
+          <View style={s.field}>
+            <Text style={s.label}>ŞİFRE</Text>
+            <TextInput
+              secureTextEntry
+              autoComplete={isLogin ? 'current-password' : 'new-password'}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor="rgba(27,27,47,0.35)"
+              style={s.input}
+            />
+          </View>
+
+          {!!error && (
+            <View style={s.errorBox}>
+              <Text style={s.error}>{error}</Text>
+            </View>
+          )}
+
+          <Pressable
+            disabled={loading}
+            onPress={submit}
+            style={({ pressed }) => [s.button, pressed && s.buttonPressed]}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.buttonText}>{isLogin ? 'Giriş yap' : 'Hesap oluştur'}</Text>
+            )}
+          </Pressable>
+        </View>
+
+        <Text style={s.footer}>Walk. Discover. Leave a trace.</Text>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  root:{flex:1,backgroundColor:colors.bg,padding:24,justifyContent:'center',gap:12},
-  title:{fontSize:42,fontWeight:'800',color:colors.ink},
-  sub:{fontSize:16,color:colors.muted,marginBottom:12},
-  input:{height:54,borderRadius:radius.pill,backgroundColor:colors.card,paddingHorizontal:18,color:colors.ink},
-  button:{height:54,borderRadius:radius.pill,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center',marginTop:4},
-  buttonText:{color:'#fff',fontSize:17,fontWeight:'700'},
-  switch:{textAlign:'center',color:colors.primary,fontWeight:'700',padding:10},
-  error:{color:'#C92A2A'},
+  root: {
+    flex: 1,
+    backgroundColor: '#F3F2F8',
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  glowOne: {
+    position: 'absolute',
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: 'rgba(108,76,228,0.16)',
+    top: -80,
+    right: -70,
+  },
+  glowTwo: {
+    position: 'absolute',
+    width: 210,
+    height: 210,
+    borderRadius: 105,
+    backgroundColor: 'rgba(80,180,255,0.12)',
+    bottom: -45,
+    left: -75,
+  },
+  glowThree: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.75)',
+    top: '25%',
+    left: -35,
+  },
+  brandMark: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    shadowColor: '#6C4CE4',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 4,
+  },
+  brandDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.primary,
+  },
+  title: {
+    fontSize: 44,
+    lineHeight: 48,
+    fontWeight: '800',
+    letterSpacing: -1.8,
+    color: colors.ink,
+  },
+  sub: {
+    marginTop: 7,
+    marginBottom: 28,
+    fontSize: 16,
+    lineHeight: 23,
+    color: colors.muted,
+  },
+  glassCard: {
+    padding: 16,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.66)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.92)',
+    shadowColor: '#1B1B2F',
+    shadowOpacity: 0.08,
+    shadowRadius: 28,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 7,
+  },
+  segment: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 18,
+    backgroundColor: 'rgba(27,27,47,0.055)',
+    marginBottom: 18,
+  },
+  segmentItem: {
+    flex: 1,
+    height: 40,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentActive: {
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#1B1B2F',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.muted,
+  },
+  segmentTextActive: {
+    color: colors.ink,
+    fontWeight: '750',
+  },
+  field: {
+    marginBottom: 13,
+  },
+  label: {
+    marginLeft: 5,
+    marginBottom: 7,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    color: 'rgba(27,27,47,0.48)',
+  },
+  input: {
+    height: 54,
+    borderRadius: 17,
+    paddingHorizontal: 17,
+    backgroundColor: 'rgba(255,255,255,0.62)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.95)',
+    color: colors.ink,
+    fontSize: 16,
+  },
+  errorBox: {
+    borderRadius: 14,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: 'rgba(201,42,42,0.08)',
+  },
+  error: {
+    color: '#B42318',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  button: {
+    height: 55,
+    borderRadius: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.22,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 9 },
+    elevation: 5,
+  },
+  buttonPressed: {
+    opacity: 0.86,
+    transform: [{ scale: 0.985 }],
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '750',
+    letterSpacing: -0.2,
+  },
+  footer: {
+    textAlign: 'center',
+    marginTop: 22,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    color: 'rgba(27,27,47,0.38)',
+  },
 });
