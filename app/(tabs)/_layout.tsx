@@ -1,12 +1,24 @@
+import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../../src/theme';
 import { DropPhotoButton } from '../../src/components/DropPhotoButton';
 import { useTrackLocation } from '../../src/lib/useTrackLocation';
+import { useApp } from '../../src/store/useApp';
 
 export default function TabsLayout() {
   useTrackLocation();
+  const pruneExpiredMoments = useApp((s) => s.pruneExpiredMoments);
+  const syncSession = useApp((s) => s.syncSession);
+
+  useEffect(() => {
+    void syncSession();
+    pruneExpiredMoments();
+    const timer = setInterval(pruneExpiredMoments, 60_000);
+    return () => clearInterval(timer);
+  }, [pruneExpiredMoments]);
+
   return (
     <View style={{ flex: 1 }}>
       <Tabs
