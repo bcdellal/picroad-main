@@ -10,8 +10,10 @@ import { useApp } from '../../src/store/useApp';
 export default function TabsLayout() {
   useTrackLocation();
   const pruneExpiredMoments = useApp((s) => s.pruneExpiredMoments);
+  const syncSession = useApp((s) => s.syncSession);
 
   useEffect(() => {
+    void syncSession();
     pruneExpiredMoments();
     const timer = setInterval(pruneExpiredMoments, 60_000);
     return () => clearInterval(timer);
