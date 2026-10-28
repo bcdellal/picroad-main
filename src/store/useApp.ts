@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
+import { uploadMoment } from '../lib/uploadMoment';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { distanceKm } from '../lib/geo';
@@ -64,30 +65,44 @@ export const useApp = create<State>()(
         if (!me) return;
 
         const now = Date.now();
-        let storedUri = uri;
-
-        try {
-          const directory = FileSystem.documentDirectory;
-          if (directory) {
-            const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
-            const destination = `${directory}moments/`;
-            await FileSystem.makeDirectoryAsync(destination, { intermediates: true });
-            storedUri = `${destination}${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-            await FileSystem.copyAsync({ from: uri, to: storedUri });
-          }
-        } catch {
-          storedUri = uri;
-        }
         const m: Moment = {
           id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
           author: 'Sen',
           mine: true,
-          uri: storedUri,
+          uri,
           caption: caption.trim(),
           createdAt: now,
           latitude: me.latitude,
           longitude: me.longitude,
         };
+
+        if (supabase) {
+          const { data: session } = await supabase.auth.getSession();
+          const user = session.session?.user;
+
+          if (user) {
+            try {
+              const uploaded = await uploadMoment(uri, user.id, m.id);
+              const { error } = await supabase.from('moments').insert({
+                id: m.id,
+                user_id: user.id,
+                storage_path: uploaded.url,
+                caption: m.caption,
+                latitude: m.latitude,
+                longitude: m.longitude,
+              });
+
+              if (!error) {
+                set((s) => ({
+                  moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
+                }));
+                return;
+              }
+            } catch {
+              // Keep the moment local when network/storage is unavailable.
+            }
+          }
+        }
 
         set((s) => ({
           moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
