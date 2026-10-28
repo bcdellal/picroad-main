@@ -111,3 +111,10 @@ create policy "users can delete their own comments"
 
 -- Remove expired moments and their storage objects with a scheduled Edge Function.
 -- Do not rely on client-side deletion for server-side expiry.
+
+
+insert into storage.buckets (id, name, public) values ('moments', 'moments', true) on conflict (id) do nothing;
+
+create policy "moment photos upload own folder" on storage.objects for insert to authenticated with check (bucket_id = 'moments' and (storage.foldername(name))[1] = (select auth.uid()::text));
+create policy "moment photos public read" on storage.objects for select using (bucket_id = 'moments');
+create policy "moment photos delete own folder" on storage.objects for delete to authenticated using (bucket_id = 'moments' and (storage.foldername(name))[1] = (select auth.uid()::text));
