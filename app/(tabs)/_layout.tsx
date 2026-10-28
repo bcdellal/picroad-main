@@ -35,6 +35,9 @@ export default function TabsLayout() {
             borderTopColor: colors.glassBorder,
             ...shadows.soft,
           },
+          tabBarItemStyle: {
+            width: '35%',
+          },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '700',
