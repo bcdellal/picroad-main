@@ -1,68 +1,23 @@
-import { useEffect, useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect,useState } from 'react';
+import { Image,Pressable,StyleSheet,Text,TextInput,View } from 'react-native';
+import { useLocalSearchParams,useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, radius } from '../../src/theme';
+import { colors,radius,shadows } from '../../src/theme';
 import { useApp } from '../../src/store/useApp';
-import { hoursLeft, isExpired } from '../../src/lib/time';
+import { hoursLeft,isExpired } from '../../src/lib/time';
 
-export default function MomentScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter();
-  const m = useApp((s) => s.moments.find((x) => x.id === id));
-  const [now, setNow] = useState(Date.now());
-  const [message, setMessage] = useState('');
-  const [liked, setLiked] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  if (!m || isExpired(m.createdAt, now)) {
-    return <View style={s.empty}><Text style={s.emptyTitle}>Bu an artık yok.</Text><Text style={s.emptyText}>Fotoğraflar 24 saat sonra kayboluyor.</Text><Pressable onPress={() => router.back()} style={s.backButton}><Text style={s.backText}>Geri dön</Text></Pressable></View>;
-  }
-
-  return (
-    <View style={s.root}>
-      <View style={s.top}>
-        <Text style={s.author}>{m.author}</Text>
-        <Text style={s.left}>{hoursLeft(m.createdAt, now)} saat kaldı</Text>
-        <Pressable onPress={() => router.back()} accessibilityLabel="Kapat"><Ionicons name="close" size={26} color={colors.ink} /></Pressable>
-      </View>
-      <Image source={{ uri: m.uri }} style={s.photo} />
-      <Text style={s.caption}>{m.caption || 'Bir an'}</Text>
-      <View style={s.row}>
-        <TextInput
-          style={s.input}
-          value={message}
-          onChangeText={setMessage}
-          placeholder={`${m.author}'e küçük bir merhaba yaz...`}
-          placeholderTextColor={colors.muted}
-          returnKeyType="send"
-          onSubmitEditing={() => setMessage('')}
-        />
-        <Pressable style={s.heart} onPress={() => setLiked((value) => !value)} accessibilityRole="button" accessibilityLabel={liked ? 'Beğeniyi kaldır' : 'Beğen'}>
-          <Ionicons name={liked ? 'heart' : 'heart-outline'} size={24} color={liked ? colors.primary : colors.ink} />
-        </Pressable>
-      </View>
-    </View>
-  );
+export default function MomentScreen(){
+ const{id}=useLocalSearchParams<{id:string}>();const router=useRouter();const m=useApp(s=>s.moments.find(x=>x.id===id));const[now,setNow]=useState(Date.now());const[message,setMessage]=useState('');const[liked,setLiked]=useState(false);
+ useEffect(()=>{const t=setInterval(()=>setNow(Date.now()),60000);return()=>clearInterval(t)},[]);
+ if(!m||isExpired(m.createdAt,now))return <View style={s.empty}><View style={s.emptyIcon}><Ionicons name="time-outline" size={24} color={colors.primary}/></View><Text style={s.emptyTitle}>Bu an artık yok.</Text><Text style={s.emptyText}>Fotoğraflar 24 saat sonra kayboluyor.</Text><Pressable onPress={()=>router.back()} style={s.backButton}><Text style={s.backText}>Geri dön</Text></Pressable></View>;
+ return <View style={s.root}><View style={s.top}><View style={s.authorWrap}><View style={s.avatar}><Text style={s.avatarText}>{m.author.slice(0,1).toUpperCase()}</Text></View><View><Text style={s.author}>{m.author}</Text><Text style={s.meta}>Yürüyüşünden bir an</Text></View></View><View style={s.topActions}><View style={s.left}><Ionicons name="time-outline" size={13} color={colors.primary}/><Text style={s.leftText}>{hoursLeft(m.createdAt,now)}s</Text></View><Pressable onPress={()=>router.back()} style={s.close}><Ionicons name="close" size={21} color={colors.ink}/></Pressable></View></View>
+ <View style={s.photoFrame}><Image source={{uri:m.uri}} style={s.photo}/><View style={s.photoBadge}><Ionicons name="sparkles-outline" size={13} color={colors.ink}/><Text style={s.photoBadgeText}>24 saatlik an</Text></View></View>
+ <View style={s.captionCard}><Text style={s.caption}>{m.caption||'Bir an'}</Text></View>
+ <View style={s.bottomRow}><View style={s.inputWrap}><TextInput style={s.input} value={message} onChangeText={setMessage} placeholder={`${m.author}'e küçük bir merhaba yaz...`} placeholderTextColor="rgba(27,27,47,0.35)" returnKeyType="send" onSubmitEditing={()=>setMessage('')}/><Ionicons name="arrow-up-circle" size={25} color={colors.primary}/></View><Pressable style={({pressed})=>[s.heart,liked&&s.heartLiked,pressed&&{transform:[{scale:.94}]}]} onPress={()=>setLiked(v=>!v)}><Ionicons name={liked?'heart':'heart-outline'} size={23} color={liked?'#fff':colors.ink}/></Pressable></View>
+ </View>;
 }
-
-const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.card, padding: 20, gap: 16 },
-  empty: { flex: 1, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
-  emptyTitle: { fontSize: 24, fontWeight: '800', color: colors.ink },
-  emptyText: { color: colors.muted, textAlign: 'center' },
-  backButton: { marginTop: 8, paddingHorizontal: 20, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: radius.pill },
-  backText: { color: '#fff', fontWeight: '700' },
-  top: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  author: { flex: 1, fontSize: 20, fontWeight: '700', color: colors.ink },
-  left: { color: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill, fontWeight: '600', overflow: 'hidden' },
-  photo: { width: '100%', aspectRatio: 1, borderRadius: radius.lg },
-  caption: { fontSize: 22, fontWeight: '700', color: colors.ink },
-  row: { flexDirection: 'row', gap: 10, alignItems: 'center' },
-  input: { flex: 1, height: 52, borderRadius: radius.pill, backgroundColor: colors.bg, paddingHorizontal: 18, color: colors.ink },
-  heart: { width: 52, height: 52, borderRadius: 26, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' },
+const s=StyleSheet.create({
+ root:{flex:1,backgroundColor:colors.bg,padding:18,paddingTop:22,gap:14},empty:{flex:1,backgroundColor:colors.bg,alignItems:'center',justifyContent:'center',padding:24},emptyIcon:{width:54,height:54,borderRadius:19,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center',marginBottom:14},emptyTitle:{fontSize:24,fontWeight:'800',color:colors.ink},emptyText:{marginTop:7,color:colors.muted,textAlign:'center'},backButton:{marginTop:18,paddingHorizontal:22,height:48,borderRadius:radius.pill,backgroundColor:colors.primary,alignItems:'center',justifyContent:'center'},backText:{color:'#fff',fontWeight:'700'},
+ top:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},authorWrap:{flexDirection:'row',alignItems:'center',gap:10},avatar:{width:40,height:40,borderRadius:15,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},avatarText:{color:colors.primary,fontSize:16,fontWeight:'800'},author:{fontSize:16,fontWeight:'700',color:colors.ink},meta:{marginTop:2,fontSize:11,color:colors.muted},topActions:{flexDirection:'row',alignItems:'center',gap:7},left:{height:32,flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:10,borderRadius:radius.pill,backgroundColor:colors.primarySoft},leftText:{color:colors.primary,fontSize:12,fontWeight:'800'},close:{width:40,height:40,borderRadius:15,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,alignItems:'center',justifyContent:'center',...shadows.soft},
+ photoFrame:{position:'relative',borderRadius:radius.xl,overflow:'hidden',backgroundColor:'#ddd',...shadows.glass},photo:{width:'100%',aspectRatio:1},photoBadge:{position:'absolute',left:12,bottom:12,flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:11,height:31,borderRadius:radius.pill,backgroundColor:'rgba(255,255,255,.78)',borderWidth:1,borderColor:'rgba(255,255,255,.92)'},photoBadgeText:{fontSize:11,fontWeight:'700',color:colors.ink},captionCard:{padding:17,borderRadius:radius.lg,backgroundColor:colors.glass,borderWidth:1,borderColor:colors.glassBorder},caption:{fontSize:20,lineHeight:27,fontWeight:'700',color:colors.ink},bottomRow:{flexDirection:'row',gap:9,alignItems:'center'},inputWrap:{flex:1,height:54,flexDirection:'row',alignItems:'center',paddingLeft:16,paddingRight:13,borderRadius:18,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,...shadows.soft},input:{flex:1,height:52,color:colors.ink,fontSize:14},heart:{width:54,height:54,borderRadius:18,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,alignItems:'center',justifyContent:'center',...shadows.soft},heartLiked:{backgroundColor:colors.primary,borderColor:colors.primary}
 });
