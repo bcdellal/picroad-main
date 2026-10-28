@@ -1,4 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { distanceKm } from '../lib/geo';
 import { isExpired } from '../lib/time';
 import type { LatLng } from '../lib/geo';
@@ -21,6 +23,7 @@ type State = {
   route: LatLng[];
   moments: Moment[];
   locationStatus: LocationStatus;
+  hydrated: boolean;
   updateMe: (c: LatLng) => void;
   setLocationStatus: (status: LocationStatus) => void;
   addMoment: (uri: string, caption?: string) => void;
@@ -30,49 +33,67 @@ type State = {
 const MAX_ROUTE_POINTS = 5000;
 const MIN_ROUTE_DISTANCE_KM = 0.008;
 
-export const useApp = create<State>((set, get) => ({
-  me: null,
-  route: [],
-  moments: [],
-  locationStatus: 'loading',
+export const useApp = create<State>()(
+  persist(
+    (set, get) => ({
+      me: null,
+      route: [],
+      moments: [],
+      locationStatus: 'loading',
+      hydrated: false,
 
-  setLocationStatus: (locationStatus) => set({ locationStatus }),
+      setLocationStatus: (locationStatus) => set({ locationStatus }),
 
-  updateMe: (c) =>
-    set((s) => {
-      const last = s.route[s.route.length - 1];
-      const movedEnough = !last || distanceKm(last, c) >= MIN_ROUTE_DISTANCE_KM;
+      updateMe: (c) =>
+        set((s) => {
+          const last = s.route[s.route.length - 1];
+          const movedEnough = !last || distanceKm(last, c) >= MIN_ROUTE_DISTANCE_KM;
 
-      return {
-        me: c,
-        route: movedEnough ? [...s.route, c].slice(-MAX_ROUTE_POINTS) : s.route,
-        locationStatus: 'ready',
-      };
+          return {
+            me: c,
+            route: movedEnough ? [...s.route, c].slice(-MAX_ROUTE_POINTS) : s.route,
+            locationStatus: 'ready',
+          };
+        }),
+
+      addMoment: (uri, caption = '') => {
+        const me = get().me;
+        if (!me) return;
+
+        const now = Date.now();
+        const m: Moment = {
+          id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          author: 'Sen',
+          mine: true,
+          uri,
+          caption: caption.trim(),
+          createdAt: now,
+          latitude: me.latitude,
+          longitude: me.longitude,
+        };
+
+        set((s) => ({
+          moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
+        }));
+      },
+
+      pruneExpiredMoments: () =>
+        set((s) => ({
+          moments: s.moments.filter((moment) => !isExpired(moment.createdAt)),
+        })),
     }),
-
-  addMoment: (uri, caption = '') => {
-    const me = get().me;
-    if (!me) return;
-
-    const now = Date.now();
-    const m: Moment = {
-      id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-      author: 'Sen',
-      mine: true,
-      uri,
-      caption: caption.trim(),
-      createdAt: now,
-      latitude: me.latitude,
-      longitude: me.longitude,
-    };
-
-    set((s) => ({
-      moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
-    }));
-  },
-
-  pruneExpiredMoments: () =>
-    set((s) => ({
-      moments: s.moments.filter((moment) => !isExpired(moment.createdAt)),
-    })),
-}));
+    {
+      name: 'picroad-local-v1',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        me: state.me,
+        route: state.route,
+        moments: state.moments.filter((moment) => !isExpired(moment.createdAt)),
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.pruneExpiredMoments();
+        state && useApp.setState({ hydrated: true });
+      },
+    },
+  ),
+);
