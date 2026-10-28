@@ -1,6 +1,9 @@
 import { create } from 'zustand';
-import { hoursAgo } from '../lib/time';
+import { distanceKm } from '../lib/geo';
+import { isExpired } from '../lib/time';
 import type { LatLng } from '../lib/geo';
+
+export type LocationStatus = 'loading' | 'ready' | 'denied' | 'error';
 
 export type Moment = {
   id: string;
@@ -17,45 +20,59 @@ type State = {
   me: LatLng | null;
   route: LatLng[];
   moments: Moment[];
-  seeded: boolean;
+  locationStatus: LocationStatus;
   updateMe: (c: LatLng) => void;
+  setLocationStatus: (status: LocationStatus) => void;
   addMoment: (uri: string, caption?: string) => void;
+  pruneExpiredMoments: () => void;
 };
 
-const img = (seed: string) => `https://picsum.photos/seed/${seed}/400/400`;
-
-// Örnek arkadaş fotoğrafları: ilk konum gelince kullanıcının çevresine yerleştirilir.
-const seed = (c: LatLng): Moment[] => [
-  { id: 'm1', author: 'Maya', mine: false, uri: img('maya'), caption: 'Sabah kahvesi', createdAt: hoursAgo(5), latitude: c.latitude + 0.0015, longitude: c.longitude - 0.002 },
-  { id: 'm2', author: 'Jules', mine: false, uri: img('jules'), caption: 'Manzaralı rota', createdAt: hoursAgo(1), latitude: c.latitude + 0.0005, longitude: c.longitude + 0.0025 },
-  { id: 'm3', author: 'Leo', mine: false, uri: img('leo'), caption: 'Çiçekçi sokağı', createdAt: hoursAgo(8), latitude: c.latitude - 0.002, longitude: c.longitude + 0.001 },
-];
+const MAX_ROUTE_POINTS = 5000;
+const MIN_ROUTE_DISTANCE_KM = 0.008;
 
 export const useApp = create<State>((set, get) => ({
   me: null,
   route: [],
   moments: [],
-  seeded: false,
+  locationStatus: 'loading',
+
+  setLocationStatus: (locationStatus) => set({ locationStatus }),
+
   updateMe: (c) =>
-    set((s) => ({
-      me: c,
-      route: [...s.route, c],
-      moments: s.seeded ? s.moments : seed(c),
-      seeded: true,
-    })),
+    set((s) => {
+      const last = s.route[s.route.length - 1];
+      const movedEnough = !last || distanceKm(last, c) >= MIN_ROUTE_DISTANCE_KM;
+
+      return {
+        me: c,
+        route: movedEnough ? [...s.route, c].slice(-MAX_ROUTE_POINTS) : s.route,
+        locationStatus: 'ready',
+      };
+    }),
+
   addMoment: (uri, caption = '') => {
     const me = get().me;
     if (!me) return;
+
+    const now = Date.now();
     const m: Moment = {
-      id: String(Date.now()),
+      id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
       author: 'Sen',
       mine: true,
       uri,
-      caption,
-      createdAt: Date.now(),
+      caption: caption.trim(),
+      createdAt: now,
       latitude: me.latitude,
       longitude: me.longitude,
     };
-    set((s) => ({ moments: [m, ...s.moments] }));
+
+    set((s) => ({
+      moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
+    }));
   },
+
+  pruneExpiredMoments: () =>
+    set((s) => ({
+      moments: s.moments.filter((moment) => !isExpired(moment.createdAt)),
+    })),
 }));
