@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system/legacy';
+import { supabase } from '../lib/supabase';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { distanceKm } from '../lib/geo';
@@ -29,6 +30,7 @@ type State = {
   setLocationStatus: (status: LocationStatus) => void;
   addMoment: (uri: string, caption?: string) => Promise<void>;
   pruneExpiredMoments: () => void;
+  syncSession: () => Promise<void>;
 };
 
 const MAX_ROUTE_POINTS = 5000;
@@ -96,6 +98,21 @@ export const useApp = create<State>()(
         set((s) => ({
           moments: s.moments.filter((moment) => !isExpired(moment.createdAt)),
         })),
+
+      syncSession: async () => {
+        if (!supabase) return;
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) return;
+
+        const user = data.session.user;
+        const username = (user.user_metadata?.username as string | undefined) || user.email?.split('@')[0] || 'picroad-user';
+
+        await supabase.from('profiles').upsert({
+          id: user.id,
+          username: username.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24) || `user_${user.id.slice(0, 8)}`,
+          display_name: user.user_metadata?.display_name || null,
+        }, { onConflict: 'id' });
+      },
     }),
     {
       name: 'picroad-local-v1',
