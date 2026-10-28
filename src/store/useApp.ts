@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system/legacy';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { distanceKm } from '../lib/geo';
@@ -26,7 +27,7 @@ type State = {
   hydrated: boolean;
   updateMe: (c: LatLng) => void;
   setLocationStatus: (status: LocationStatus) => void;
-  addMoment: (uri: string, caption?: string) => void;
+  addMoment: (uri: string, caption?: string) => Promise<void>;
   pruneExpiredMoments: () => void;
 };
 
@@ -56,16 +57,30 @@ export const useApp = create<State>()(
           };
         }),
 
-      addMoment: (uri, caption = '') => {
+      addMoment: async (uri, caption = '') => {
         const me = get().me;
         if (!me) return;
 
         const now = Date.now();
+        let storedUri = uri;
+
+        try {
+          const directory = FileSystem.documentDirectory;
+          if (directory) {
+            const extension = uri.split('.').pop()?.split('?')[0] || 'jpg';
+            const destination = `${directory}moments/`;
+            await FileSystem.makeDirectoryAsync(destination, { intermediates: true });
+            storedUri = `${destination}${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+            await FileSystem.copyAsync({ from: uri, to: storedUri });
+          }
+        } catch {
+          storedUri = uri;
+        }
         const m: Moment = {
           id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
           author: 'Sen',
           mine: true,
-          uri,
+          uri: storedUri,
           caption: caption.trim(),
           createdAt: now,
           latitude: me.latitude,
