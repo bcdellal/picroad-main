@@ -4,9 +4,15 @@ import { Linking } from 'react-native';
 import { distanceKm } from './geo';
 import { useApp } from '../store/useApp';
 
-const MAX_ACCURACY_METERS = 50;
-const MAX_SPEED_MPS = 6;
-const MIN_UPDATE_DISTANCE_METERS = 8;
+const MAX_ACCURACY_METERS = 35;
+const MAX_SPEED_MPS = 7.5;
+const MIN_UPDATE_DISTANCE_METERS = 4;
+
+type AcceptedFix = {
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+};
 
 export function useTrackLocation() {
   const updateMe = useApp((s) => s.updateMe);
@@ -15,7 +21,7 @@ export function useTrackLocation() {
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
     let cancelled = false;
-    let previous: { latitude: number; longitude: number; timestamp: number } | null = null;
+    let previous: AcceptedFix | null = null;
 
     async function start() {
       try {
@@ -26,9 +32,7 @@ export function useTrackLocation() {
 
         if (!permission.granted) {
           setLocationStatus('denied');
-          if (!permission.canAskAgain) {
-            await Linking.openSettings();
-          }
+          if (!permission.canAskAgain) await Linking.openSettings();
           return;
         }
 
@@ -51,29 +55,39 @@ export function useTrackLocation() {
 
         subscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.High,
+            accuracy: Location.Accuracy.BestForNavigation,
             distanceInterval: MIN_UPDATE_DISTANCE_METERS,
-            timeInterval: 5000,
+            timeInterval: 3000,
             mayShowUserSettingsDialog: true,
           },
           (position) => {
-            const { latitude, longitude, accuracy, speed } = position.coords;
-            if (cancelled || (accuracy != null && accuracy > MAX_ACCURACY_METERS)) return;
+            if (cancelled) return;
 
-            const current = {
+            const { latitude, longitude, accuracy, speed } = position.coords;
+            if (
+              !Number.isFinite(latitude) ||
+              !Number.isFinite(longitude) ||
+              (accuracy != null && accuracy > MAX_ACCURACY_METERS)
+            ) return;
+
+            const current: AcceptedFix = {
               latitude,
               longitude,
               timestamp: position.timestamp,
             };
 
             if (previous) {
-              const movedKm = distanceKm(previous, current);
-              const elapsedSeconds = Math.max(1, (current.timestamp - previous.timestamp) / 1000);
-              const calculatedSpeed = (movedKm * 1000) / elapsedSeconds;
-              const reportedSpeed = speed != null && speed >= 0 ? speed : calculatedSpeed;
+              const elapsedSeconds = (current.timestamp - previous.timestamp) / 1000;
+              if (elapsedSeconds <= 0) return;
 
-              if (movedKm * 1000 < MIN_UPDATE_DISTANCE_METERS) return;
-              if (reportedSpeed > MAX_SPEED_MPS) return;
+              const movedMeters = distanceKm(previous, current) * 1000;
+              if (movedMeters < MIN_UPDATE_DISTANCE_METERS) return;
+
+              // Use the distance-derived speed as well as the device estimate.
+              // A reported speed of zero must not let a GPS teleport through.
+              const calculatedSpeed = movedMeters / elapsedSeconds;
+              const reportedSpeed = speed != null && speed > 0 ? speed : 0;
+              if (Math.max(calculatedSpeed, reportedSpeed) > MAX_SPEED_MPS) return;
             }
 
             previous = current;
