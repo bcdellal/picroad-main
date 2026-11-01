@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { uploadMoment } from '../lib/uploadMoment';
 import { create } from 'zustand';
@@ -37,6 +36,15 @@ type State = {
 const MAX_ROUTE_POINTS = 5000;
 const MIN_ROUTE_DISTANCE_KM = 0.008;
 
+// UUID v4 format is required by public.moments.id (Postgres uuid).
+function createMomentId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
 export const useApp = create<State>()(
   persist(
     (set, get) => ({
@@ -62,11 +70,12 @@ export const useApp = create<State>()(
 
       addMoment: async (uri, caption = '') => {
         const me = get().me;
-        if (!me) return;
+        if (!me) throw new Error('Konum alınmadan fotoğraf konumlandırılamaz.');
 
         const now = Date.now();
-        const m: Moment = {
-          id: `${now.toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+        const momentId = createMomentId();
+        const moment: Moment = {
+          id: momentId,
           author: 'Sen',
           mine: true,
           uri,
@@ -77,35 +86,31 @@ export const useApp = create<State>()(
         };
 
         if (supabase) {
-          const { data: session } = await supabase.auth.getSession();
-          const user = session.session?.user;
+          const { data, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
+          const user = data.session?.user;
+          if (!user) throw new Error('Fotoğrafı yüklemek için önce giriş yapmalısın.');
 
-          if (user) {
-            try {
-              const uploaded = await uploadMoment(uri, user.id, m.id);
-              const { error } = await supabase.from('moments').insert({
-                id: m.id,
-                user_id: user.id,
-                storage_path: uploaded.url,
-                caption: m.caption,
-                latitude: m.latitude,
-                longitude: m.longitude,
-              });
+          const uploaded = await uploadMoment(uri, user.id, moment.id);
+          const { error: insertError } = await supabase.from('moments').insert({
+            id: moment.id,
+            user_id: user.id,
+            storage_path: uploaded.path,
+            caption: moment.caption,
+            latitude: moment.latitude,
+            longitude: moment.longitude,
+          });
 
-              if (!error) {
-                set((s) => ({
-                  moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
-                }));
-                return;
-              }
-            } catch {
-              // Keep the moment local when network/storage is unavailable.
-            }
+          if (insertError) {
+            await supabase.storage.from('moments').remove([uploaded.path]);
+            throw insertError;
           }
+
+          moment.uri = uploaded.signedUrl;
         }
 
         set((s) => ({
-          moments: [m, ...s.moments.filter((moment) => !isExpired(moment.createdAt))],
+          moments: [moment, ...s.moments.filter((item) => !isExpired(item.createdAt))],
         }));
       },
 
@@ -116,17 +121,20 @@ export const useApp = create<State>()(
 
       syncSession: async () => {
         if (!supabase) return;
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
         if (!data.session) return;
 
         const user = data.session.user;
         const username = (user.user_metadata?.username as string | undefined) || user.email?.split('@')[0] || 'picroad-user';
 
-        await supabase.from('profiles').upsert({
+        const { error: profileError } = await supabase.from('profiles').upsert({
           id: user.id,
           username: username.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24) || `user_${user.id.slice(0, 8)}`,
           display_name: user.user_metadata?.display_name || null,
         }, { onConflict: 'id' });
+
+        if (profileError) throw profileError;
       },
     }),
     {
