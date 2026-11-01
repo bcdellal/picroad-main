@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Pressable } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadows, type } from '../../src/theme';
@@ -13,6 +15,7 @@ const achievements = [
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { route, moments } = useApp();
   const distance = routeKm(route);
 
@@ -105,11 +108,11 @@ export default function ProfileScreen() {
         )}
       </View>
 
-      <View style={s.friendRow}>
+      <Pressable onPress={() => router.push('/friends')} style={({ pressed }) => [s.friendRow, pressed && { opacity: 0.8 }]}>
         <View style={s.friendIcon}><Ionicons name="person-add-outline" size={20} color={colors.primary} /></View>
-        <View style={s.friendCopy}><Text style={s.friendTitle}>Arkadaş ekle</Text><Text style={s.cardText}>Nickname veya QR ile yeni bir yol arkadaşı bul.</Text></View>
+        <View style={s.friendCopy}><Text style={s.friendTitle}>Arkadaşlar ve istekler</Text><Text style={s.cardText}>Kullanıcı adıyla arkadaş bul, gelen istekleri yönet.</Text></View>
         <Ionicons name="chevron-forward" size={18} color={colors.muted} />
-      </View>
+      </Pressable>
     </ScrollView>
   );
 }
