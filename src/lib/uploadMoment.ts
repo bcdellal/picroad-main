@@ -16,7 +16,7 @@ export async function uploadMoment(localUri: string, userId: string, momentId: s
 
   const { data, error: signedUrlError } = await supabase.storage
     .from('moments')
-    .createSignedUrl(path, 60 * 60);
+    .createSignedUrl(path, 60 * 60 * 24);
 
   if (signedUrlError || !data?.signedUrl) {
     await supabase.storage.from('moments').remove([path]);
