@@ -34,7 +34,7 @@ type State = {
 };
 
 const MAX_ROUTE_POINTS = 5000;
-const MIN_ROUTE_DISTANCE_KM = 0.008;
+const MIN_ROUTE_DISTANCE_KM = 0.004;
 
 // UUID v4 format is required by public.moments.id (Postgres uuid).
 function createMomentId(): string {
