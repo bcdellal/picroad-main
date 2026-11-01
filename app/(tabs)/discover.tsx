@@ -8,32 +8,37 @@ import { supabase } from '../../src/lib/supabase';
 import { useApp, type Moment } from '../../src/store/useApp';
 import { hoursLeft } from '../../src/lib/time';
 
-type FeedMoment = Moment & { userId: string; commentCount: number };
+type InlineComment = { id:string; author:string; body:string };
+type FeedMoment = Moment & { userId:string; commentCount:number; previewComments:InlineComment[] };
 export default function DiscoverScreen() {
-  const insets = useSafeAreaInsets(); const router = useRouter();
-  const localMoments = useApp((s) => s.moments);
+  const insets=useSafeAreaInsets(); const router=useRouter();
+  const localMoments=useApp((s)=>s.moments);
   const [feed,setFeed]=useState<FeedMoment[]>([]); const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false); const [error,setError]=useState('');
   const loadFeed=useCallback(async()=>{
-    if(!supabase){setFeed(localMoments.filter(m=>Date.now()-m.createdAt<86400000).map(m=>({...m,userId:'local',commentCount:0})));setLoading(false);setRefreshing(false);return;}
+    if(!supabase){setFeed(localMoments.filter(m=>Date.now()-m.createdAt<86400000).map(m=>({...m,userId:'local',commentCount:0,previewComments:[]})));setLoading(false);setRefreshing(false);return;}
     try{
       setError('');
       const {data:rows,error:momentError}=await supabase.from('moments').select('id,user_id,storage_path,caption,latitude,longitude,created_at').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(50);
       if(momentError)throw momentError;
-      const ids=[...new Set((rows??[]).map(r=>r.user_id))];
+      const ids=[...new Set((rows??[]).map(r=>r.user_id))],momentIds=(rows??[]).map(r=>r.id);
       const {data:profiles,error:profileError}=ids.length?await supabase.from('profiles').select('id,username,display_name').in('id',ids):{data:[],error:null};
       if(profileError)throw profileError;
       const byId=new Map((profiles??[]).map(p=>[p.id,p]));
-      const momentIds=(rows??[]).map(r=>r.id);
-      const {data:commentRows,error:commentError}=momentIds.length?await supabase.from('moment_comments').select('moment_id').in('moment_id',momentIds):{data:[],error:null};
+      const {data:commentRows,error:commentError}=momentIds.length?await supabase.from('moment_comments').select('id,moment_id,user_id,body,created_at').in('moment_id',momentIds).order('created_at',{ascending:false}):{data:[],error:null};
       if(commentError)throw commentError;
-      const commentCounts=new Map<string,number>();
-      (commentRows??[]).forEach(comment=>commentCounts.set(comment.moment_id,(commentCounts.get(comment.moment_id)??0)+1));
+      const commentUserIds=[...new Set((commentRows??[]).map(c=>c.user_id))];
+      const {data:commentProfiles,error:commentProfilesError}=commentUserIds.length?await supabase.from('profiles').select('id,username,display_name').in('id',commentUserIds):{data:[],error:null};
+      if(commentProfilesError)throw commentProfilesError;
+      const commentNames=new Map((commentProfiles??[]).map(p=>[p.id,p.display_name||p.username||'PicRoad kullanıcısı']));
+      const grouped=new Map<string,InlineComment[]>();
+      (commentRows??[]).forEach(c=>{const arr=grouped.get(c.moment_id)??[];if(arr.length<2)arr.push({id:c.id,author:commentNames.get(c.user_id)||'PicRoad kullanıcısı',body:c.body});grouped.set(c.moment_id,arr);});
       const results=await Promise.all((rows??[]).map(async row=>{
         const {data,error:imageError}=await supabase.storage.from('moments').createSignedUrl(row.storage_path,3600);
         if(imageError||!data?.signedUrl)return null;
-        const profile=byId.get(row.user_id);
-        return {id:row.id,userId:row.user_id,author:profile?.display_name||profile?.username||'PicRoad kullanıcısı',mine:false,uri:data.signedUrl,caption:row.caption??'',createdAt:new Date(row.created_at).getTime(),latitude:row.latitude,longitude:row.longitude,commentCount:commentCounts.get(row.id)??0} satisfies FeedMoment;
+        const profile=byId.get(row.user_id),comments=grouped.get(row.id)??[];
+        const count=(commentRows??[]).filter(c=>c.moment_id===row.id).length;
+        return {id:row.id,userId:row.user_id,author:profile?.display_name||profile?.username||'PicRoad kullanıcısı',mine:false,uri:data.signedUrl,caption:row.caption??'',createdAt:new Date(row.created_at).getTime(),latitude:row.latitude,longitude:row.longitude,commentCount:count,previewComments:comments} satisfies FeedMoment;
       }));
       setFeed(results.filter((x):x is FeedMoment=>x!==null));
     }catch(e){setError(e instanceof Error?e.message:'Moment akışı yüklenemedi.');}
@@ -48,7 +53,8 @@ export default function DiscoverScreen() {
     {loading?<View style={s.stateCard}><ActivityIndicator color={colors.primary}/><Text style={s.stateText}>Anlar yükleniyor...</Text></View>:error?<View style={s.stateCard}><Ionicons name="cloud-offline-outline" size={26} color={colors.muted}/><Text style={s.stateTitle}>Akış yüklenemedi</Text><Text style={s.stateText}>{error}</Text><Pressable onPress={refresh} style={s.retry}><Text style={s.retryText}>Tekrar dene</Text></Pressable></View>:feed.length===0?<View style={s.emptyCard}><View style={s.emptyIcon}><Ionicons name="images-outline" size={26} color={colors.primary}/></View><Text style={s.emptyTitle}>Hikâyen burada başlayacak.</Text><Text style={s.emptyText}>Henüz akışında bir Moment yok. Yürüyüşe çık, ilk fotoğrafını paylaş veya arkadaşlarını PicRoad'a davet et.</Text></View>:feed.map(moment=><Pressable key={moment.id} onPress={()=>router.push({pathname:'/moment/[id]',params:{id:moment.id}})} style={({pressed})=>[s.post,pressed&&{opacity:.92,transform:[{scale:.995}]}]}>
       <View style={s.postHead}><View style={s.avatar}><Text style={s.avatarText}>{moment.author.slice(0,1).toUpperCase()}</Text></View><View style={s.authorCopy}><Text style={s.author}>{moment.author}</Text><Text style={s.timestamp}>{relativeTime(moment.createdAt)} · {hoursLeft(moment.createdAt)} saat kaldı</Text></View><Ionicons name="ellipsis-horizontal" size={20} color={colors.muted}/></View>
       <Image source={{uri:moment.uri}} style={s.photo} resizeMode="cover"/>{moment.caption?<Text style={s.caption}>{moment.caption}</Text>:null}
-      <View style={s.postFoot}><View style={s.locationLabel}><Ionicons name="location-outline" size={14} color={colors.primary}/><Text style={s.locationText}>Bir yürüyüş anısı</Text></View><View style={s.openLabel}><Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.primary}/><Text style={s.openText}>{moment.commentCount} YORUM</Text><Ionicons name="chevron-forward" size={13} color={colors.primary}/></View></View>
+      <View style={s.inlineComments}>{moment.previewComments.length?moment.previewComments.slice().reverse().map(c=><View key={c.id} style={s.inlineComment}><Text style={s.inlineAuthor}>{c.author}</Text><Text style={s.inlineBody} numberOfLines={2}>{c.body}</Text></View>):<Text style={s.noComments}>Henüz yorum yok. İlk yorumu sen bırak.</Text>}</View>
+      <View style={s.postFoot}><View style={s.locationLabel}><Ionicons name="location-outline" size={14} color={colors.primary}/><Text style={s.locationText}>Bir yürüyüş anısı</Text></View><View style={s.openLabel}><Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.primary}/><Text style={s.openText}>{moment.commentCount} YORUM · YORUMLA</Text><Ionicons name="chevron-forward" size={13} color={colors.primary}/></View></View>
     </Pressable>)}
   </ScrollView></View>;
 }
@@ -57,6 +63,6 @@ const s=StyleSheet.create({
  root:{flex:1,backgroundColor:colors.bg},top:{paddingHorizontal:20,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},eyebrow:{fontSize:9,fontWeight:'800',letterSpacing:1.7,color:colors.primary},title:{marginTop:3,fontSize:32,fontWeight:'800',letterSpacing:-1,color:colors.ink},subtitle:{marginTop:3,fontSize:13,color:colors.muted},topIcon:{width:44,height:44,borderRadius:16,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,alignItems:'center',justifyContent:'center'},
  composer:{marginHorizontal:18,marginTop:22,padding:14,borderRadius:radius.lg,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,flexDirection:'row',alignItems:'center',...shadows.soft},composerAvatar:{width:42,height:42,borderRadius:15,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},composerCopy:{flex:1,marginLeft:11},composerTitle:{fontSize:13,fontWeight:'800',color:colors.ink},composerSub:{marginTop:3,fontSize:11,color:colors.muted},
  feedHeader:{marginTop:27,marginBottom:12,paddingHorizontal:20,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},feedTitle:{fontSize:19,fontWeight:'800',color:colors.ink},feedCount:{fontSize:9,fontWeight:'800',letterSpacing:1.1,color:colors.muted},
- post:{marginHorizontal:14,marginBottom:16,padding:10,borderRadius:radius.xl,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,...shadows.soft},postHead:{flexDirection:'row',alignItems:'center',paddingHorizontal:4,paddingVertical:5,marginBottom:10},avatar:{width:39,height:39,borderRadius:15,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},avatarText:{color:colors.primary,fontSize:16,fontWeight:'800'},authorCopy:{flex:1,marginLeft:10},author:{fontSize:13,fontWeight:'800',color:colors.ink},timestamp:{marginTop:3,fontSize:10,color:colors.muted},photo:{width:'100%',aspectRatio:.92,borderRadius:radius.lg,backgroundColor:colors.line},caption:{marginTop:11,marginHorizontal:4,fontSize:13,lineHeight:20,color:colors.ink},postFoot:{marginTop:12,marginHorizontal:4,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},locationLabel:{flexDirection:'row',alignItems:'center',gap:4},locationText:{fontSize:11,color:colors.muted,fontWeight:'600'},openLabel:{flexDirection:'row',alignItems:'center',gap:3},openText:{fontSize:9,letterSpacing:.8,fontWeight:'800',color:colors.primary},
+ post:{marginHorizontal:14,marginBottom:16,padding:10,borderRadius:radius.xl,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,...shadows.soft},postHead:{flexDirection:'row',alignItems:'center',paddingHorizontal:4,paddingVertical:5,marginBottom:10},avatar:{width:39,height:39,borderRadius:15,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},avatarText:{color:colors.primary,fontSize:16,fontWeight:'800'},authorCopy:{flex:1,marginLeft:10},author:{fontSize:13,fontWeight:'800',color:colors.ink},timestamp:{marginTop:3,fontSize:10,color:colors.muted},photo:{width:'100%',aspectRatio:.92,borderRadius:radius.lg,backgroundColor:colors.line},caption:{marginTop:11,marginHorizontal:4,fontSize:13,lineHeight:20,color:colors.ink},inlineComments:{marginTop:12,marginHorizontal:4,gap:8},inlineComment:{flexDirection:'row',flexWrap:'wrap',gap:6},inlineAuthor:{fontSize:11,fontWeight:'800',color:colors.ink},inlineBody:{flex:1,fontSize:11,lineHeight:17,color:colors.muted},noComments:{fontSize:11,color:colors.muted},postFoot:{marginTop:12,marginHorizontal:4,flexDirection:'row',alignItems:'center',justifyContent:'space-between'},locationLabel:{flexDirection:'row',alignItems:'center',gap:4},locationText:{fontSize:11,color:colors.muted,fontWeight:'600'},openLabel:{flexDirection:'row',alignItems:'center',gap:3},openText:{fontSize:9,letterSpacing:.5,fontWeight:'800',color:colors.primary},
  stateCard:{marginHorizontal:18,padding:28,borderRadius:radius.xl,backgroundColor:colors.glassStrong,alignItems:'center',gap:9},stateTitle:{marginTop:5,fontSize:16,fontWeight:'800',color:colors.ink},stateText:{fontSize:12,color:colors.muted,textAlign:'center',lineHeight:18},retry:{marginTop:5,paddingHorizontal:18,paddingVertical:10,borderRadius:radius.pill,backgroundColor:colors.primarySoft},retryText:{fontSize:12,fontWeight:'800',color:colors.primary},emptyCard:{marginHorizontal:18,padding:26,borderRadius:radius.xl,backgroundColor:colors.glassStrong,borderWidth:1,borderColor:colors.glassBorder,alignItems:'center',...shadows.soft},emptyIcon:{width:54,height:54,borderRadius:19,backgroundColor:colors.primarySoft,alignItems:'center',justifyContent:'center'},emptyTitle:{marginTop:15,fontSize:17,fontWeight:'800',color:colors.ink},emptyText:{marginTop:7,fontSize:12,lineHeight:19,textAlign:'center',color:colors.muted}
 });
