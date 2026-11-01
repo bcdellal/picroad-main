@@ -20,7 +20,15 @@ export function DropPhotoButton() {
         return;
       }
       const r = await ImagePicker.launchCameraAsync({ quality: 0.6, exif: false, allowsEditing: false });
-      if (!r.canceled && r.assets[0]?.uri) void addMoment(r.assets[0].uri);
+      if (!r.canceled && r.assets[0]?.uri) {
+        try {
+          await addMoment(r.assets[0].uri);
+          Alert.alert('Moment eklendi', 'Fotoğrafın PicRoad izine eklendi.');
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Fotoğraf kaydedilemedi.';
+          Alert.alert('Moment kaydedilemedi', message);
+        }
+      }
     } catch {
       Alert.alert('Fotoğraf açılamadı', 'Kamerayı açarken bir sorun oluştu. Lütfen tekrar dene.');
     }
