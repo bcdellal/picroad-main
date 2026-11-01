@@ -106,7 +106,19 @@ export const useApp = create<State>()(
             throw insertError;
           }
 
-          moment.uri = uploaded.signedUrl;
+          // The row now exists, so the Storage SELECT policy can authorize
+          // creation of a signed URL for this private image.
+          const { data: signedData, error: signedUrlError } = await supabase.storage
+            .from('moments')
+            .createSignedUrl(uploaded.path, 60 * 60 * 24);
+
+          if (signedUrlError || !signedData?.signedUrl) {
+            await supabase.from('moments').delete().eq('id', moment.id);
+            await supabase.storage.from('moments').remove([uploaded.path]);
+            throw signedUrlError ?? new Error('Fotoğraf bağlantısı oluşturulamadı.');
+          }
+
+          moment.uri = signedData.signedUrl;
         }
 
         set((s) => ({
