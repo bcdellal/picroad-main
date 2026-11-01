@@ -304,7 +304,7 @@ const s = StyleSheet.create({
   },
   segmentTextActive: {
     color: colors.ink,
-    fontWeight: '750',
+    fontWeight: '700',
   },
   field: {
     marginBottom: 13,
@@ -359,7 +359,7 @@ const s = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '750',
+    fontWeight: '700',
     letterSpacing: -0.2,
   },
   footer: {
