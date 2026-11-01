@@ -4,8 +4,7 @@ import { supabase } from './supabase';
 export async function uploadMoment(localUri: string, userId: string, momentId: string) {
   if (!supabase) throw new Error('Supabase yapılandırılmamış.');
 
-  // Camera assets are local file URIs. Read them with Expo FileSystem
-  // instead of fetch(uri), which can fail for native file:// assets.
+  // Read native camera file URIs with Expo FileSystem.
   const file = new File(localUri);
   if (!file.exists) {
     throw new Error('Çekilen fotoğrafın geçici dosyası bulunamadı. Lütfen tekrar fotoğraf çek.');
@@ -26,14 +25,7 @@ export async function uploadMoment(localUri: string, userId: string, momentId: s
 
   if (uploadError) throw uploadError;
 
-  const { data, error: signedUrlError } = await supabase.storage
-    .from('moments')
-    .createSignedUrl(path, 60 * 60 * 24);
-
-  if (signedUrlError || !data?.signedUrl) {
-    await supabase.storage.from('moments').remove([path]);
-    throw signedUrlError ?? new Error('Fotoğraf bağlantısı oluşturulamadı.');
-  }
-
-  return { path, signedUrl: data.signedUrl };
+  // Do not request a signed URL here. Storage SELECT policy checks the
+  // moments table row, which is inserted by addMoment immediately afterwards.
+  return { path };
 }
