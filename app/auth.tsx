@@ -9,17 +9,12 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { supabase } from '../src/lib/supabase';
 import { colors } from '../src/theme';
 
-const LOCAL_AUTH_KEY = 'picroad-local-auth-v1';
-
-type LocalAccount = { username: string; password: string };
-
 export default function AuthScreen() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [loading, setLoading] = useState(false);
@@ -35,10 +30,10 @@ export default function AuthScreen() {
   }, []);
 
   async function submit() {
-    const cleanUsername = username.trim().toLowerCase();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!cleanUsername || cleanUsername.length < 3 || password.length < 6) {
-      setError('Kullanıcı adı en az 3, şifre en az 6 karakter olmalı.');
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail) || password.length < 6) {
+      setError('Geçerli bir e-posta adresi ve en az 6 karakterli şifre gir.');
       return;
     }
 
@@ -46,48 +41,26 @@ export default function AuthScreen() {
     setError('');
 
     try {
-      if (supabase) {
-        const email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@picroad.local`;
-        const result = mode === 'login'
-          ? await supabase.auth.signInWithPassword({ email, password })
-          : await supabase.auth.signUp({
-              email,
-              password,
-              options: { data: { username: cleanUsername } },
-            });
-
-        if (result.error) {
-          setError(result.error.message);
-          return;
-        }
-
-        if (mode === 'signup' && !result.data.session) {
-          setError('Hesabın oluşturuldu. E-posta doğrulaması gerekiyorsa tamamladıktan sonra giriş yap.');
-          return;
-        }
-
-        router.replace('/(tabs)');
+      if (!supabase) {
+        setError('Sunucu bağlantısı henüz yapılandırılmamış. Giriş için Supabase bilgileri gerekli.');
         return;
       }
 
-      const raw = await AsyncStorage.getItem(LOCAL_AUTH_KEY);
-      const account = raw ? (JSON.parse(raw) as LocalAccount) : null;
+      const result = mode === 'login'
+        ? await supabase.auth.signInWithPassword({ email: cleanEmail, password })
+        : await supabase.auth.signUp({
+            email: cleanEmail,
+            password,
+            options: { data: { username: cleanEmail.split('@')[0] } },
+          });
 
-      if (mode === 'signup') {
-        if (account) {
-          setError('Bu cihazda zaten bir hesap var. Giriş yap.');
-          return;
-        }
-        await AsyncStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify({
-          username: cleanUsername,
-          password,
-        }));
-        router.replace('/(tabs)');
+      if (result.error) {
+        setError(result.error.message);
         return;
       }
 
-      if (!account || account.username !== cleanUsername || account.password !== password) {
-        setError('Kullanıcı adı veya şifre hatalı.');
+      if (mode === 'signup' && !result.data.session) {
+        setError('Hesabın oluşturuldu. Giriş yapmadan önce e-posta adresini doğrula.');
         return;
       }
 
@@ -139,14 +112,16 @@ export default function AuthScreen() {
           </View>
 
           <View style={s.field}>
-            <Text style={s.label}>KULLANICI ADI</Text>
+            <Text style={s.label}>E-POSTA ADRESİ</Text>
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
               autoComplete="username"
-              value={username}
-              onChangeText={setUsername}
-              placeholder="kullaniciadi"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoComplete="email"
+              placeholder="ornek@mail.com"
               placeholderTextColor="rgba(27,27,47,0.35)"
               style={s.input}
             />
