@@ -164,7 +164,10 @@ create policy "likes visible when moment is visible"
   using (exists (select 1 from public.moments m where m.id = moment_id));
 create policy "users can like as themselves"
   on public.moment_likes for insert to authenticated
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.moments m where m.id = moment_id)
+  );
 create policy "users can remove their own likes"
   on public.moment_likes for delete to authenticated using (user_id = auth.uid());
 
@@ -177,7 +180,10 @@ create policy "comments visible when moment is visible"
   using (exists (select 1 from public.moments m where m.id = moment_id));
 create policy "users can comment as themselves"
   on public.moment_comments for insert to authenticated
-  with check (user_id = auth.uid());
+  with check (
+    user_id = auth.uid()
+    and exists (select 1 from public.moments m where m.id = moment_id)
+  );
 create policy "users can delete their own comments"
   on public.moment_comments for delete to authenticated using (user_id = auth.uid());
 
