@@ -32,7 +32,7 @@ export default function AuthScreen() {
   async function submit() {
     const cleanEmail = email.trim().toLowerCase();
 
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(cleanEmail) || password.length < 6) {
+    if (!/^[^\s@]+@[^\s@]+\\.[^\s@]+$/.test(cleanEmail) || password.length < 6) {
       setError('Geçerli bir e-posta adresi ve en az 6 karakterli şifre gir.');
       return;
     }
@@ -116,7 +116,6 @@ export default function AuthScreen() {
             <TextInput
               autoCapitalize="none"
               autoCorrect={false}
-              autoComplete="username"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
