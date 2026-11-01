@@ -53,6 +53,10 @@ export default function TabsLayout() {
           title: '',
           tabBarButton: () => <DropPhotoButton />,
         }} />
+        <Tabs.Screen name="messages" options={{
+          title: 'Messages',
+          tabBarIcon: ({ color }) => <Ionicons name="chatbubble-ellipses-outline" size={22} color={color} />,
+        }} />
         <Tabs.Screen name="trail" options={{
           title: 'My trail',
           tabBarIcon: ({ color }) => <Ionicons name="git-branch-outline" size={22} color={color} />,
