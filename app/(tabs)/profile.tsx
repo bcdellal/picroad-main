@@ -1,10 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radius, shadows, type } from '../../src/theme';
 import { useApp } from '../../src/store/useApp';
+import { supabase } from '../../src/lib/supabase';
 import { routeKm } from '../../src/lib/geo';
 
 const achievements = [
@@ -17,7 +20,26 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { route, moments } = useApp();
+  const [displayName, setDisplayName] = useState('PicRoad kullanıcısı');
+  const [username, setUsername] = useState('kullanici');
   const distance = routeKm(route);
+
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    async function loadProfile() {
+      if (!supabase) return;
+      const { data } = await supabase.auth.getSession();
+      const user = data.session?.user;
+      if (!user) return;
+      const { data: profile } = await supabase.from('profiles').select('username,display_name').eq('id', user.id).maybeSingle();
+      if (!active) return;
+      const handle = profile?.username || user.email?.split('@')[0] || 'kullanici';
+      setUsername(handle);
+      setDisplayName(profile?.display_name || handle);
+    }
+    void loadProfile();
+    return () => { active = false; };
+  }, []));
 
   return (
     <ScrollView
@@ -34,10 +56,10 @@ export default function ProfileScreen() {
       </View>
 
       <View style={s.profileCard}>
-        <View style={s.avatar}><Text style={s.avatarText}>P</Text></View>
+        <View style={s.avatar}><Text style={s.avatarText}>{displayName.slice(0, 1).toUpperCase()}</Text></View>
         <View style={s.profileCopy}>
-          <Text style={s.name}>PicRoad user</Text>
-          <Text style={s.handle}>@picroad_user</Text>
+          <Text style={s.name}>{displayName}</Text>
+          <Text style={s.handle}>@{username}</Text>
           <Text style={s.bio}>Yürü. Keşfet. İz bırak.</Text>
         </View>
         <View style={s.qr}><Ionicons name="qr-code-outline" size={22} color={colors.ink} /></View>
