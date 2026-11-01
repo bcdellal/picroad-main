@@ -28,7 +28,7 @@ export default function MomentScreen(){
    ]);
    if(imageError)throw imageError;
    if(active&&image?.signedUrl)setMoment({id:row.id,author:profile?.display_name||profile?.username||'PicRoad kullanıcısı',mine:false,uri:image.signedUrl,caption:row.caption??'',createdAt:new Date(row.created_at).getTime(),latitude:row.latitude,longitude:row.longitude});
-   await loadComments(activeSetter=>{if(active)activeSetter(activeSetter);});
+   if(active) await loadComments();
   }catch(e){if(active)setError(e instanceof Error?e.message:'Moment yüklenemedi.');}
   finally{if(active)setLoading(false);}
  }
