@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Stack, router, useSegments } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../src/lib/supabase';
-
-const LOCAL_AUTH_KEY = 'picroad-local-auth-v1';
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -13,15 +10,14 @@ export default function RootLayout() {
     let mounted = true;
 
     async function checkAuth() {
-      if (supabase) {
-        const { data } = await supabase.auth.getSession();
-        if (mounted && !data.session) router.replace('/auth');
+      if (!supabase) {
+        if (mounted) router.replace('/auth');
         if (mounted) setReady(true);
         return;
       }
 
-      const localAccount = await AsyncStorage.getItem(LOCAL_AUTH_KEY);
-      if (mounted && !localAccount) router.replace('/auth');
+      const { data } = await supabase.auth.getSession();
+      if (mounted && !data.session) router.replace('/auth');
       if (mounted) setReady(true);
     }
 
@@ -40,13 +36,9 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!ready || supabase) return;
-
-    AsyncStorage.getItem(LOCAL_AUTH_KEY).then((account) => {
-      const inAuth = segments[0] === 'auth';
-      if (!account && !inAuth) router.replace('/auth');
-      if (account && inAuth) router.replace('/(tabs)');
-    });
+    if (!ready) return;
+    const inAuth = segments[0] === 'auth';
+    if (!supabase && !inAuth) router.replace('/auth');
   }, [ready, segments]);
 
   if (!ready) return null;
