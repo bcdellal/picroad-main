@@ -8,14 +8,14 @@ import { supabase } from '../../src/lib/supabase';
 import { useApp, type Moment } from '../../src/store/useApp';
 import { hoursLeft } from '../../src/lib/time';
 
-type FeedMoment = Moment & { userId: string };
+type FeedMoment = Moment & { userId: string; commentCount: number };
 export default function DiscoverScreen() {
   const insets = useSafeAreaInsets(); const router = useRouter();
   const localMoments = useApp((s) => s.moments);
   const [feed,setFeed]=useState<FeedMoment[]>([]); const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false); const [error,setError]=useState('');
   const loadFeed=useCallback(async()=>{
-    if(!supabase){setFeed(localMoments.filter(m=>Date.now()-m.createdAt<86400000).map(m=>({...m,userId:'local'})));setLoading(false);setRefreshing(false);return;}
+    if(!supabase){setFeed(localMoments.filter(m=>Date.now()-m.createdAt<86400000).map(m=>({...m,userId:'local',commentCount:0})));setLoading(false);setRefreshing(false);return;}
     try{
       setError('');
       const {data:rows,error:momentError}=await supabase.from('moments').select('id,user_id,storage_path,caption,latitude,longitude,created_at').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(50);
@@ -24,11 +24,16 @@ export default function DiscoverScreen() {
       const {data:profiles,error:profileError}=ids.length?await supabase.from('profiles').select('id,username,display_name').in('id',ids):{data:[],error:null};
       if(profileError)throw profileError;
       const byId=new Map((profiles??[]).map(p=>[p.id,p]));
+      const momentIds=(rows??[]).map(r=>r.id);
+      const {data:commentRows,error:commentError}=momentIds.length?await supabase.from('moment_comments').select('moment_id').in('moment_id',momentIds):{data:[],error:null};
+      if(commentError)throw commentError;
+      const commentCounts=new Map<string,number>();
+      (commentRows??[]).forEach(comment=>commentCounts.set(comment.moment_id,(commentCounts.get(comment.moment_id)??0)+1));
       const results=await Promise.all((rows??[]).map(async row=>{
         const {data,error:imageError}=await supabase.storage.from('moments').createSignedUrl(row.storage_path,3600);
         if(imageError||!data?.signedUrl)return null;
         const profile=byId.get(row.user_id);
-        return {id:row.id,userId:row.user_id,author:profile?.display_name||profile?.username||'PicRoad kullanıcısı',mine:false,uri:data.signedUrl,caption:row.caption??'',createdAt:new Date(row.created_at).getTime(),latitude:row.latitude,longitude:row.longitude} satisfies FeedMoment;
+        return {id:row.id,userId:row.user_id,author:profile?.display_name||profile?.username||'PicRoad kullanıcısı',mine:false,uri:data.signedUrl,caption:row.caption??'',createdAt:new Date(row.created_at).getTime(),latitude:row.latitude,longitude:row.longitude,commentCount:commentCounts.get(row.id)??0} satisfies FeedMoment;
       }));
       setFeed(results.filter((x):x is FeedMoment=>x!==null));
     }catch(e){setError(e instanceof Error?e.message:'Moment akışı yüklenemedi.');}
@@ -43,7 +48,7 @@ export default function DiscoverScreen() {
     {loading?<View style={s.stateCard}><ActivityIndicator color={colors.primary}/><Text style={s.stateText}>Anlar yükleniyor...</Text></View>:error?<View style={s.stateCard}><Ionicons name="cloud-offline-outline" size={26} color={colors.muted}/><Text style={s.stateTitle}>Akış yüklenemedi</Text><Text style={s.stateText}>{error}</Text><Pressable onPress={refresh} style={s.retry}><Text style={s.retryText}>Tekrar dene</Text></Pressable></View>:feed.length===0?<View style={s.emptyCard}><View style={s.emptyIcon}><Ionicons name="images-outline" size={26} color={colors.primary}/></View><Text style={s.emptyTitle}>Hikâyen burada başlayacak.</Text><Text style={s.emptyText}>Henüz akışında bir Moment yok. Yürüyüşe çık, ilk fotoğrafını paylaş veya arkadaşlarını PicRoad'a davet et.</Text></View>:feed.map(moment=><Pressable key={moment.id} onPress={()=>router.push({pathname:'/moment/[id]',params:{id:moment.id}})} style={({pressed})=>[s.post,pressed&&{opacity:.92,transform:[{scale:.995}]}]}>
       <View style={s.postHead}><View style={s.avatar}><Text style={s.avatarText}>{moment.author.slice(0,1).toUpperCase()}</Text></View><View style={s.authorCopy}><Text style={s.author}>{moment.author}</Text><Text style={s.timestamp}>{relativeTime(moment.createdAt)} · {hoursLeft(moment.createdAt)} saat kaldı</Text></View><Ionicons name="ellipsis-horizontal" size={20} color={colors.muted}/></View>
       <Image source={{uri:moment.uri}} style={s.photo} resizeMode="cover"/>{moment.caption?<Text style={s.caption}>{moment.caption}</Text>:null}
-      <View style={s.postFoot}><View style={s.locationLabel}><Ionicons name="location-outline" size={14} color={colors.primary}/><Text style={s.locationText}>Bir yürüyüş anısı</Text></View><View style={s.openLabel}><Text style={s.openText}>YORUMLA</Text><Ionicons name="chevron-forward" size={13} color={colors.primary}/></View></View>
+      <View style={s.postFoot}><View style={s.locationLabel}><Ionicons name="location-outline" size={14} color={colors.primary}/><Text style={s.locationText}>Bir yürüyüş anısı</Text></View><View style={s.openLabel}><Ionicons name="chatbubble-ellipses-outline" size={13} color={colors.primary}/><Text style={s.openText}>{moment.commentCount} YORUM</Text><Ionicons name="chevron-forward" size={13} color={colors.primary}/></View></View>
     </Pressable>)}
   </ScrollView></View>;
 }
